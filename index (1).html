@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Hula Hoop Counter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --purple: #7c6fcd;
+      --purple-light: #ede9fe;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --bg: #f8f7ff;
+      --surface: #ffffff;
+      --border: rgba(0,0,0,0.1);
+      --text: #1a1a2e;
+      --text-muted: #6b7280;
+      --radius: 14px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f0f1a;
+        --surface: #1c1c2e;
+        --border: rgba(255,255,255,0.1);
+        --text: #f0eeff;
+        --text-muted: #9ca3af;
+        --purple-light: #2a2445;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1rem;
+      gap: 1rem;
+    }
+
+    header {
+      text-align: center;
+      padding-top: 0.25rem;
+    }
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    header p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    #cam-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 560px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      aspect-ratio: 4 / 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #cam-wrap video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    #cam-wrap canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+    }
+    #placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      z-index: 2;
+    }
+    #placeholder svg {
+      opacity: 0.35;
+    }
+
+    #stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+      max-width: 560px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .card-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .card-val {
+      font-size: 1.75rem;
+      font-weight: 600;
+      line-height: 1.1;
+    }
+    .card-val.big {
+      font-size: 2.75rem;
+    }
+
+    #controls {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 560px;
+    }
+    button {
+      flex: 1;
+      padding: 13px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { transform: scale(0.97); }
+    #start-btn {
+      background: var(--purple);
+      color: #fff;
+      border-color: transparent;
+    }
+    #start-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 560px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .row input[type=range] {
+      flex: 1;
+      accent-color: var(--purple);
+      height: 4px;
+    }
+    .row span.val {
+      min-width: 20px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    #status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      width: 100%;
+      max-width: 560px;
+    }
+    #dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    #dot.green { background: var(--green); }
+    #dot.yellow { background: var(--amber); }
+    #dot.red { background: var(--red); }
+
+    #graph-wrap {
+      width: 100%;
+      max-width: 560px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px;
+    }
+    #graph { display: block; width: 100%; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🏃 Hula Hoop Counter</h1>
+    <p>Real-time rotation tracking via pose detection</p>
+  </header>
+
+  <div id="cam-wrap">
+    <div id="placeholder">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+      </svg>
+      <span>Tap "Start camera" to begin</span>
+    </div>
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="stats">
+    <div class="card">
+      <span class="card-label">Rotations</span>
+      <span class="card-val big" id="count-el">0</span>
+    </div>
+    <div class="card">
+      <span class="card-label">RPM</span>
+      <span class="card-val" id="rpm-el">—</span>
+    </div>
+    <div class="card">
+      <span class="card-label">Time</span>
+      <span class="card-val" id="time-el">0s</span>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="start-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Start camera
+    </button>
+    <button id="reset-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.24"/></svg>
+      Reset
+    </button>
+  </div>
+
+  <div class="row">
+    <span>Sensitivity</span>
+    <input type="range" id="sensitivity" min="1" max="5" value="3" step="1" />
+    <span class="val" id="sens-out">3</span>
+  </div>
+
+  <div id="status-bar">
+    <div id="dot"></div>
+    <span id="status-txt">Waiting to start…</span>
+  </div>
+
+  <div id="graph-wrap">
+    <canvas id="graph" height="56"></canvas>
+  </div>
+
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+  <script>
+    const videoEl    = document.getElementById('video');
+    const canvasEl   = document.getElementById('canvas');
+    const graphEl    = document.getElementById('graph');
+    const ctx        = canvasEl.getContext('2d');
+    const gCtx       = graphEl.getContext('2d');
+    const countEl    = document.getElementById('count-el');
+    const rpmEl      = document.getElementById('rpm-el');
+    const timeEl     = document.getElementById('time-el');
+    const dot        = document.getElementById('dot');
+    const statusTxt  = document.getElementById('status-txt');
+    const startBtn   = document.getElementById('start-btn');
+    const resetBtn   = document.getElementById('reset-btn');
+    const sensInput  = document.getElementById('sensitivity');
+    const sensOut    = document.getElementById('sens-out');
+    const placeholder = document.getElementById('placeholder');
+
+    /* --- state --- */
+    let rotations = 0, startTime = null, running = false, cameraStarted = false;
+    let timerInterval = null;
+    let hipXHistory = [], graphBuffer = [];
+    let prevSmoothed = null, prevDir = 0, lastPeakTime = 0, peakFlash = 0;
+    const HISTORY_MAX = 60, SMOOTH_W = 7, GRAPH_MAX = 200;
+
+    /* --- sensitivity → min ms between peaks --- */
+    function minInterval() {
+      return [700, 550, 400, 300, 220][parseInt(sensInput.value) - 1];
+    }
+
+    sensInput.addEventListener('input', () => { sensOut.textContent = sensInput.value; });
+
+    function smooth(arr) {
+      if (arr.length < 2) return arr[arr.length - 1] ?? 0.5;
+      const w = Math.min(SMOOTH_W, arr.length);
+      const sl = arr.slice(-w);
+      return sl.reduce((a, b) => a + b, 0) / sl.length;
+    }
+
+    function setStatus(msg, cls) {
+      statusTxt.textContent = msg;
+      dot.className = cls;
+    }
+
+    /* --- graph --- */
+    function drawGraph() {
+      const W = graphEl.offsetWidth || 540;
+      graphEl.width = W;
+      const H = 56;
+      gCtx.clearRect(0, 0, W, H);
+      if (graphBuffer.length < 2) return;
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const lineColor = peakFlash > 0 ? '#22c55e' : (dark ? '#a78bfa' : '#7c6fcd');
+      const midColor  = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+      gCtx.strokeStyle = midColor; gCtx.lineWidth = 0.5;
+      gCtx.beginPath(); gCtx.moveTo(0, H/2); gCtx.lineTo(W, H/2); gCtx.stroke();
+      const data = graphBuffer.slice(-GRAPH_MAX);
+      const mn = Math.min(...data), mx = Math.max(...data), rng = mx - mn || 0.01;
+      gCtx.strokeStyle = lineColor; gCtx.lineWidth = 2;
+      gCtx.beginPath();
+      data.forEach((v, i) => {
+        const x = (i / (GRAPH_MAX - 1)) * W;
+        const y = H - ((v - mn) / rng) * (H - 10) - 5;
+        i === 0 ? gCtx.moveTo(x, y) : gCtx.lineTo(x, y);
+      });
+      gCtx.stroke();
+      if (peakFlash > 0) peakFlash--;
+    }
+
+    /* --- pose results --- */
+    function onResults(results) {
+      const W = canvasEl.width, H = canvasEl.height;
+      ctx.clearRect(0, 0, W, H);
+      if (results.image) ctx.drawImage(results.image, 0, 0, W, H);
+
+      if (!results.poseLandmarks) {
+        setStatus('No pose detected — make sure torso is visible', 'yellow');
+        return;
+      }
+
+      if (typeof drawConnectors !== 'undefined') {
+        drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS,
+          { color: 'rgba(255,255,255,0.45)', lineWidth: 1.5 });
+        drawLandmarks(ctx, results.poseLandmarks,
+          { color: '#a78bfa', lineWidth: 1, radius: 3 });
+      }
+
+      const lh = results.poseLandmarks[23];
+      const rh = results.poseLandmarks[24];
+      if (!lh || !rh) return;
+
+      const conf = ((lh.visibility ?? 1) + (rh.visibility ?? 1)) / 2;
+      if (conf < 0.4) {
+        setStatus('Hips not clearly visible — step back', 'yellow');
+        return;
+      }
+
+      setStatus('Tracking — spin that hoop!', 'green');
+
+      const midX = (lh.x + rh.x) / 2;
+      hipXHistory.push(midX);
+      if (hipXHistory.length > HISTORY_MAX) hipXHistory.shift();
+
+      const cur = smooth(hipXHistory);
+      graphBuffer.push(cur);
+      if (graphBuffer.length > GRAPH_MAX * 2) graphBuffer = graphBuffer.slice(-GRAPH_MAX);
+
+      if (prevSmoothed !== null && running && startTime !== null) {
+        const dir = cur > prevSmoothed + 0.0005 ? 1
+                  : cur < prevSmoothed - 0.0005 ? -1 : 0;
+        if (prevDir === 1 && dir === -1) {
+          const now = Date.now();
+          if (now - lastPeakTime > minInterval()) {
+            rotations++;
+            countEl.textContent = rotations;
+            lastPeakTime = now;
+            peakFlash = 8;
+          }
+        }
+        if (dir !== 0) prevDir = dir;
+      }
+      prevSmoothed = cur;
+
+      /* highlight hip midpoint */
+      const mx2 = ((lh.x + rh.x) / 2) * W;
+      const my2 = ((lh.y + rh.y) / 2) * H;
+      ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(mx2, my2, 16, 0, Math.PI * 2); ctx.stroke();
+
+      drawGraph();
+      updateRPM();
+    }
+
+    function updateRPM() {
+      if (!startTime || rotations === 0) { rpmEl.textContent = '—'; return; }
+      const mins = (Date.now() - startTime) / 60000;
+      rpmEl.textContent = Math.round(rotations / mins);
+    }
+
+    /* --- reset --- */
+    function doReset() {
+      rotations = 0; hipXHistory = []; graphBuffer = [];
+      prevSmoothed = null; prevDir = 0; lastPeakTime = 0; peakFlash = 0;
+      countEl.textContent = '0'; rpmEl.textContent = '—'; timeEl.textContent = '0s';
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      if (running) { startTime = Date.now(); startTimer(); }
+      else startTime = null;
+    }
+
+    function startTimer() {
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        if (!startTime) return;
+        timeEl.textContent = Math.floor((Date.now() - startTime) / 1000) + 's';
+      }, 500);
+    }
+
+    /* --- start camera --- */
+    async function startCamera() {
+      if (cameraStarted) return;
+      cameraStarted = true;
+      startBtn.disabled = true;
+      startBtn.textContent = 'Loading model…';
+      setStatus('Loading pose detection model…', 'yellow');
+
+      /* use modelComplexity 0 for mobile performance */
+      const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+
+      const pose = new Pose({
+        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+      });
+      pose.setOptions({
+        modelComplexity: isMobile ? 0 : 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      pose.onResults(onResults);
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+        });
+        videoEl.srcObject = stream;
+        await videoEl.play();
+        placeholder.style.display = 'none';
+        canvasEl.width  = videoEl.videoWidth  || 640;
+        canvasEl.height = videoEl.videoHeight || 480;
+
+        const camera = new Camera(videoEl, {
+          onFrame: async () => { await pose.send({ image: videoEl }); },
+          width: 640, height: 480
+        });
+        await camera.start();
+
+        running = true;
+        startTimer();
+        startBtn.textContent = '● Camera on';
+        setStatus('Tracking — spin that hoop!', 'green');
+      } catch (e) {
+        console.error(e);
+        setStatus('Camera access denied or unavailable', 'red');
+        startBtn.disabled = false;
+        startBtn.textContent = 'Start camera';
+        cameraStarted = false;
+      }
+    }
+
+    startBtn.addEventListener('click', startCamera);
+    resetBtn.addEventListener('click', doReset);
+    setInterval(drawGraph, 100);
+  </script>
+</body>
+</html>
