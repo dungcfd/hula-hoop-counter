@@ -229,15 +229,18 @@ let cameraStarted = false, running = false, sampling = false;
 let targetHsv = null;
 let rotations = 0, startTime = null, timerInterval = null;
 let xHist = [], yHist = [], graphBuf = [];
-let prevSmoothed = null, prevDir = 0;
+let prevSmoothed = null;
+let sustainedDir = 0, sustainedCount = 0, confirmedDir = 0;
 let lastPeakTime = 0, lastValleyVal = null, peakFlash = 0;
 
 const HIST_MAX     = 90;
 const SMOOTH_W     = 9;
 const GRAPH_MAX    = 200;
 const MIN_PIXELS   = 25;    // minimum matching pixels to trust centroid
-const MIN_AMP      = 0.025; // 2.5% of frame height/width
+const MIN_AMP      = 0.06;  // 6% of frame — real rotation moves the centroid clearly
 const MIN_PEAK_MS  = 320;   // max ~185 rpm
+const DEAD_ZONE    = 0.002; // ignore sub-0.2% moves (camera noise)
+const SUSTAIN_N    = 4;     // frames of consistent direction before confirming turn
 
 /* colour helpers */
 function rgbToHsv(r, g, b) {
@@ -311,17 +314,33 @@ function trackCentroid(nx, ny) {
   if (graphBuf.length > GRAPH_MAX*2) graphBuf = graphBuf.slice(-GRAPH_MAX);
 
   if (prevSmoothed !== null && running && startTime !== null) {
-    const dir = cur > prevSmoothed+0.0003 ? 1 : cur < prevSmoothed-0.0003 ? -1 : 0;
-    if (prevDir === -1 && dir === 1)  lastValleyVal = cur;
-    if (prevDir === 1  && dir === -1) {
-      const amp = lastValleyVal !== null ? cur - lastValleyVal : 0;
-      const now = Date.now();
-      if (amp > MIN_AMP && now - lastPeakTime > MIN_PEAK_MS) {
-        rotations++; countEl.textContent = rotations;
-        lastPeakTime = now; peakFlash = 10; updateRPM();
-      }
+    const dir = cur > prevSmoothed + DEAD_ZONE ? 1
+              : cur < prevSmoothed - DEAD_ZONE ? -1 : 0;
+
+    // accumulate sustained direction — resets on reversal
+    if (dir !== 0) {
+      if (dir === sustainedDir) { sustainedCount++; }
+      else { sustainedDir = dir; sustainedCount = 1; }
     }
-    if (dir !== 0) prevDir = dir;
+
+    // only act once we have SUSTAIN_N frames of consistent movement
+    if (sustainedCount >= SUSTAIN_N) {
+      if (confirmedDir === -1 && sustainedDir === 1) {
+        lastValleyVal = cur;  // valley confirmed
+      }
+      if (confirmedDir === 1 && sustainedDir === -1) {
+        // peak confirmed — now check amplitude AND recent signal range
+        const amp = lastValleyVal !== null ? cur - lastValleyVal : 0;
+        const recent = primary.slice(-30);
+        const recentRange = Math.max(...recent) - Math.min(...recent);
+        const now = Date.now();
+        if (amp > MIN_AMP && recentRange > MIN_AMP && now - lastPeakTime > MIN_PEAK_MS) {
+          rotations++; countEl.textContent = rotations;
+          lastPeakTime = now; peakFlash = 10; updateRPM();
+        }
+      }
+      if (sustainedDir !== confirmedDir) confirmedDir = sustainedDir;
+    }
   }
   prevSmoothed = cur;
 }
@@ -403,7 +422,8 @@ function handleTap(clientX, clientY) {
   targetHsv = rgbToHsv(r, g, b);
   swatchEl.style.background = `rgb(${r},${g},${b})`;
   colorLbl.textContent = `rgb(${r}, ${g}, ${b})`;
-  prevSmoothed=null; prevDir=0; xHist=[]; yHist=[]; graphBuf=[];
+  prevSmoothed=null; sustainedDir=0; sustainedCount=0; confirmedDir=0;
+  graphBuf=[]; xHist=[]; yHist=[];
   lastValleyVal=null; lastPeakTime=0;
   sampling=false;
   sampleBtn.classList.remove('active');
@@ -428,7 +448,8 @@ function startTimer() {
 /* reset */
 function doReset() {
   rotations=0; xHist=[]; yHist=[]; graphBuf=[];
-  prevSmoothed=null; prevDir=0; lastPeakTime=0; lastValleyVal=null; peakFlash=0;
+  prevSmoothed=null; sustainedDir=0; sustainedCount=0; confirmedDir=0;
+  lastPeakTime=0; lastValleyVal=null; peakFlash=0;
   countEl.textContent='0'; rpmEl.textContent='—'; timeEl.textContent='0s';
   if (timerInterval) { clearInterval(timerInterval); timerInterval=null; }
   if (running) startTimer(); else startTime=null;
